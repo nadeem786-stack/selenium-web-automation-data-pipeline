@@ -1,0 +1,174 @@
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+
+import time
+import os
+import re
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+
+# ======================================================
+# CONFIG
+# ======================================================
+FACEBOOK_PAGE_URL = "https://www.facebook.com/Policebody.Cam01?_rdr"
+SCROLL_COUNT = 60
+
+DESKTOP_PATH = os.path.join(os.path.expanduser("~"), "Desktop")
+RAW_CSV = os.path.join(DESKTOP_PATH, "facebook_posts_raw.csv")
+FILTERED_CSV = os.path.join(DESKTOP_PATH, "filtered_bodycam_posts_december_2025.csv")
+
+# ======================================================
+# HELPER FUNCTIONS
+# ======================================================
+def extract_video_url(post):
+    for a in post.find_all("a", href=True):
+        href = a["href"]
+        if any(x in href for x in ["/watch/?v=", "/videos/", "/reel/"]):
+            return "https://www.facebook.com" + href if href.startswith("/") else href
+    return ""
+
+def extract_post_date(post):
+    abbr = post.find("abbr")
+    if abbr and abbr.has_attr("data-utime"):
+        try:
+            return pd.to_datetime(int(abbr["data-utime"]), unit="s")
+        except:
+            return None
+    return None
+
+def guess_incident_type(text):
+    text = text.lower()
+    keywords = {
+        "traffic stop": ["traffic stop", "pulled over"],
+        "arrest": ["arrest"],
+        "pursuit": ["pursuit", "chase"],
+        "use-of-force": ["taser", "shot"],
+        "search": ["search", "k9"]
+    }
+    for k, words in keywords.items():
+        if any(w in text for w in words):
+            return k
+    return "unknown"
+
+def guess_agency_city_state(text):
+    agency = "Police Department" if re.search(r"\bpolice\b", text, re.I) else ""
+    city = ""
+    state = ""
+    return agency, city, state
+
+# ======================================================
+# START SELENIUM
+# ======================================================
+options = webdriver.ChromeOptions()
+options.add_argument("--disable-notifications")
+options.add_argument("--start-maximized")
+
+driver = webdriver.Chrome(
+    service=Service(ChromeDriverManager().install()),
+    options=options
+)
+
+print("➡️ Opening Facebook login page...")
+driver.get("https://www.facebook.com")
+print("🔐 PLEASE LOG IN MANUALLY (30 seconds)...")
+time.sleep(30)
+
+print("➡️ Opening Facebook page...")
+driver.get(FACEBOOK_PAGE_URL)
+time.sleep(8)
+
+# ======================================================
+# SCRAPING
+# ======================================================
+rows = {}
+
+for i in range(SCROLL_COUNT):
+    print(f"Scrolling {i+1}/{SCROLL_COUNT}")
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(3)
+
+    soup = BeautifulSoup(driver.page_source, "lxml")
+    posts = soup.find_all("div", {"role": "article"})
+
+    for post in posts:
+        post_url = ""
+        for a in post.find_all("a", href=True):
+            if "/posts/" in a["href"]:
+                post_url = "https://www.facebook.com" + a["href"]
+                break
+
+        if not post_url or post_url in rows:
+            continue
+
+        caption = post.get_text(" ", strip=True)
+        post_date = extract_post_date(post)
+        video_url = extract_video_url(post)
+        incident_type = guess_incident_type(caption)
+        agency, city, state = guess_agency_city_state(caption)
+
+        rows[post_url] = {
+            "post_url": post_url,
+            "post_date": post_date,
+            "video_url": video_url,
+            "caption": caption,
+            "incident_type": incident_type,
+            "agency_guess": agency,
+            "city_guess": city,
+            "state_guess": state
+        }
+
+driver.quit()
+
+# ======================================================
+# SAVE RAW CSV
+# ======================================================
+df = pd.DataFrame(rows.values())
+
+# 🔒 ENSURE COLUMNS EXIST
+for col in ["video_url", "post_date", "caption"]:
+    if col not in df.columns:
+        df[col] = ""
+
+df.to_csv(RAW_CSV, index=False, encoding="utf-8")
+
+print("\n✅ SCRAPING COMPLETE")
+print(f"📁 Raw file saved to: {RAW_CSV}")
+print(f"📊 Total posts collected: {len(df)}")
+
+# ======================================================
+# FILTERING — DECEMBER 2025
+# ======================================================
+print("➡️ Filtering posts for December 2025 with bodycam keywords...")
+
+df["post_date"] = pd.to_datetime(df["post_date"], errors="coerce")
+
+df_december = df[
+    (df["post_date"].dt.year == 2025) &
+    (df["post_date"].dt.month == 12)
+].copy()
+
+if df_december.empty:
+    print("⚠️ No December 2025 posts found.")
+    df_december.to_csv(FILTERED_CSV, index=False)
+    sys.exit()
+
+keywords = ["body cam", "body-camera", "police footage", "law enforcement video"]
+df_december["caption_lower"] = df_december["caption"].str.lower()
+
+filtered_df = df_december[
+    df_december["caption_lower"].apply(lambda x: any(k in x for k in keywords))
+]
+
+filtered_df = filtered_df[
+    filtered_df["video_url"].notna() &
+    (filtered_df["video_url"].str.strip() != "")
+]
+
+filtered_df.drop(columns=["caption_lower"], inplace=True)
+filtered_df.to_csv(FILTERED_CSV, index=False)
+
+print(f"✅ Filtering complete! File saved as: {FILTERED_CSV}")
+print(f"📊 Total filtered posts: {len(filtered_df)}")
