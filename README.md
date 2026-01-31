@@ -14,7 +14,7 @@
 
 This project is an **end-to-end web automation pipeline** built using **Python and Selenium** to automate interaction with a **dynamic, JavaScript-heavy social media platform**, extract structured data, and apply **quality assurance (QA) validations** before exporting clean datasets.
 
-The solution reflects **real-world automation challenges**, including login handling, infinite scrolling, dynamic content loading, and data validation — making it highly relevant for **Automation Engineer, QA Analyst, and Associate Analyst roles**.
+The solution reflects **real-world automation challenges**, including login handling, infinite scrolling, dynamic content loading, and data validation.
 
 ---
 
