@@ -1,5 +1,5 @@
-# selenium-web-automation-data-pipeline
-# 🤖 Selenium Web Automation Data Pipeline
+# playwright-web-automation-data-pipeline
+# 🤖 playwright  Web Automation Data Pipeline
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.x-blue?logo=python" />
@@ -12,7 +12,7 @@
 
 ## 📌 Overview
 
-This project is an **end-to-end web automation pipeline** built using **Python and Selenium** to automate interaction with a **dynamic, JavaScript-heavy social media platform**, extract structured data, and apply **quality assurance (QA) validations** before exporting clean datasets.
+This project is an **end-to-end web automation pipeline** built using **Python and playwright** to automate interaction with a **dynamic, JavaScript-heavy social media platform**, extract structured data, and apply **quality assurance (QA) validations** before exporting clean datasets.
 
 The solution reflects **real-world automation challenges**, including login handling, infinite scrolling, dynamic content loading, and data validation.
 
@@ -37,7 +37,7 @@ The solution reflects **real-world automation challenges**, including login hand
 </p>
 
 - **Python 3**
-- **Selenium WebDriver**
+- **playwright WebDriver**
 - **BeautifulSoup**
 - **Pandas**
 - **Regex**
